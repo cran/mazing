@@ -13,6 +13,10 @@ test_that("basic maze functionality works", {
     m2 <- as.maze(m)
     expect_identical(m, m2)
     
+    # test return.coords (not currently used, but might want it at some point)
+    adj <- mazing:::adjacent(c(2,2), m, return.coords = TRUE)
+    expect_true(all(adj[,1] == c(3,1,2,2)))
+    expect_true(all(adj[,2] == c(2,2,1,3)))
 })
 
 test_that("pathfinding works as expected", {
@@ -32,6 +36,16 @@ test_that("pathfinding works as expected", {
                 'center')
     pts <- find_maze_refpoint(pnames, m)
     expect_true(all(dim(pts) == c(length(pnames),2)))
+    
+    pts <- find_maze_refpoint(c(1,2), m)
+    expect_true(is.matrix(pts))
+    expect_equal(ncol(pts), 2)
+    expect_true(all(pts[,] == 1:2))
+    
+    pts <- find_maze_refpoint(matrix(1:4, 2), m)
+    expect_true(is.matrix(pts))
+    expect_equal(ncol(pts), 2)
+    expect_true(all(pts[,] == 1:4))
     
     p2 <- solve_maze(m, start = c(1,1), end = c(10,10))
     expect_true(all(p == p2))
@@ -66,6 +80,22 @@ test_that("plotting functions do not give errors", {
     expect_invisible(plot(m, walls = TRUE))
     expect_invisible(plot(m, adjust = c(.5,.5)))
     expect_invisible(plot(m, walls = TRUE, adjust = c(.5,.5)))
+    expect_invisible(plot(m, walls = TRUE, openings = c('left','right')))
+    expect_invisible(plot(m, walls = TRUE, openings = c('left','right'),
+                          openings_direction = c('topleft','bottomright')))
+    expect_invisible(plot(m, walls = TRUE, openings = c('left','right'),
+                          openings_direction = 'all'))
+    expect_error(plot(m, walls = TRUE, openings = c('left','right'),
+                      openings_direction = c('top','top','top')), 
+                 'More opening directions specified')
+    # contrived mazes to hit the openings_direction = 'top' / 'bottom' 
+    # cases without specifying
+    mat <- matrix(1, nrow = 2, ncol = 3)
+    mat[1,1] <- mat[1,3] <- 0
+    m <- as.maze(mat)
+    expect_invisible(plot(m, walls = TRUE, openings = c(2,2)))
+    m <- as.maze(mat[2:1,])
+    expect_invisible(plot(m, walls = TRUE, openings = c(2,1)))
 })
 
 test_that("advanced maze/matrix manipulation works", {
@@ -76,7 +106,9 @@ test_that("advanced maze/matrix manipulation works", {
     
     m2 <- expand_matrix(m)
     expect_true(all(dim(m2) == 2*dim(m)))
-    expect_true(mean(m) == mean(m2))
+    eps <- ifelse(capabilities("long.double"),
+                  sqrt(.Machine$double.eps), 0.1)
+    expect_equal(mean(m), mean(m2), tolerance = eps)
     
     m3 <- widen_paths(m2)
     expect_true(all(dim(m3) == dim(m2)))

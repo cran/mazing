@@ -39,17 +39,75 @@ plot.maze <- function(x, walls = FALSE, ...){
 #' @param adjust A vector by which to adjust the overall position of the maze.
 #'   Should be a numeric vector of length 2, indicating the \code{x} and
 #'   \code{y} adjustments, respectively.
+#' @param openings Locations in the maze where a certain wall(s) should not be
+#'   drawn (only applies when \code{walls = TRUE}). May be specified as
+#'   coordinates, or as a relative description (see
+#'   \code{\link{find_maze_refpoint}})
+#' @param openings_direction Character vector describing which walls should not
+#'   be drawn at the locations specified by \code{openings}. See Details.
+#'   
+#' @details The \code{openings_direction} argument specifies where to create an
+#'   opening (ie. where not to draw walls), relative to a location in the maze
+#'   given by \code{openings}. Possible values are: \code{"left"},
+#'   \code{"right"}, \code{"top"}, \code{"bottom"}, \code{"topleft"},
+#'   \code{"topright"}, \code{"bottomright"}, \code{"bottomleft"}, and
+#'   \code{"all"}. If not specified, this will be set as the first value in
+#'   \code{c("left","right","top","bottom")} to reference a wall that would
+#'   otherwise have been drawn.
+#' 
 #' @importFrom graphics lines
 #' @export
-lines.maze <- function(x, walls = FALSE, adjust = c(0,0), ...){
+lines.maze <- function(x, walls = FALSE, adjust = c(0,0),
+                       openings = NULL, openings_direction = NULL, ...){
     if(walls){
         MAZE <- maze2binary(x)
+        if(!is.null(openings)){
+            op <- 2 * matrix(find_maze_refpoint(openings, x), ncol = 2)
+            n.op <- nrow(op)
+            if(is.null(openings_direction)){
+                openings_direction <- sapply(seq_len(n.op), function(i){
+                    poss <- which(adjacent(op[i,2:1], MAZE) == 0)
+                    if(2 %in% poss) return('left')
+                    if(4 %in% poss) return('right')
+                    if(3 %in% poss) return('top')
+                    if(1 %in% poss) return('bottom')
+                })
+            }
+            if(length(openings_direction) > n.op){
+                stop('More opening directions specified (',
+                     length(openings_direction),
+                     ') than openings (', n.op, ')')
+            }
+            if(length(openings_direction) < n.op){
+                openings_direction <- rep(openings_direction, 
+                                          length.out = n.op)
+            }
+            for(i in seq_len(n.op)){
+                if(openings_direction[i] %in% c('left','topleft',
+                                          'bottomleft','all')){
+                    MAZE[op[i,2], op[i,1]-1] <- -1
+                }
+                if(openings_direction[i] %in% c('right','topright',
+                                          'bottomright','all')){
+                    MAZE[op[i,2], op[i,1]+1] <- -1
+                }
+                if(openings_direction[i] %in% c('top','topleft',
+                                          'topright','all')){
+                    MAZE[op[i,2]+1, op[i,1]] <- -1
+                }
+                if(openings_direction[i] %in% c('bottom','bottomright',
+                                          'bottomleft','all')){
+                    MAZE[op[i,2]-1, op[i,1]] <- -1
+                }
+            }
+            
+        }
         for(i in 1:nrow(MAZE)){
             for(j in 1:ncol(MAZE)){
                 if(MAZE[i,j] == 0){
                     adj <- adjacent(c(i,j), MAZE)
                     vals <- adj[!is.na(adj)]
-                    if(any(vals != 0)){
+                    if(any(vals == 1)){
                         draw <- which(adj == 0)
                         for(dir in draw){
                             trgt <- switch(dir,
@@ -59,12 +117,12 @@ lines.maze <- function(x, walls = FALSE, adjust = c(0,0), ...){
                                            '4' = c(i,j) + c(0,1))  # position, not name
                             tadj <- c(adjacent(trgt, MAZE), diag_adj_vals(trgt, MAZE))
                             tvals <- tadj[!is.na(tadj)]
-                            if(any(tvals != 0)){
+                            if(any(tvals == 1)){
                                 lines(c(j,trgt[2])/2 + adjust[1], 
                                       c(i,trgt[1])/2 + adjust[2],  ...)
                             }
                         }
-                        MAZE[i,j] <- 0
+                        MAZE[i,j] <- -1
                     }
                 }
             }
